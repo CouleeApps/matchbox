@@ -2,7 +2,7 @@ use crate::state::{Peer, ServerState};
 use async_trait::async_trait;
 use axum::extract::ws::Message;
 use futures::StreamExt;
-use matchbox_protocol::{JsonPeerEvent, PeerRequest};
+use matchbox_protocol::{JsonSignalEvent, PeerEvent, PeerRequest};
 use matchbox_signaling::{
     common_logic::parse_request, ClientRequestError, NoCallbacks, SignalingTopology, WsStateMeta,
 };
@@ -31,7 +31,7 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
 
         // Tell other waiting peers about me!
         let peers = state.add_peer(peer);
-        let event_text = JsonPeerEvent::NewPeer(peer_id).to_string();
+        let event_text = JsonSignalEvent::Peer(PeerEvent::NewPeer(peer_id)).to_string();
         let event = Message::Text(event_text.clone());
         for peer_id in peers {
             if let Err(e) = state.try_send(peer_id, event.clone()) {
@@ -67,10 +67,10 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
             match request {
                 PeerRequest::Signal { receiver, data } => {
                     let event = Message::Text(
-                        JsonPeerEvent::Signal {
+                        JsonSignalEvent::Peer(PeerEvent::Signal {
                             sender: peer_id,
                             data,
-                        }
+                        })
                         .to_string(),
                     );
                     if let Some(peer) = state.get_peer(&receiver) {
@@ -97,7 +97,7 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
                 .into_iter()
                 .filter(|other_id| *other_id != peer_id);
             // Tell each connected peer about the disconnected peer.
-            let event = Message::Text(JsonPeerEvent::PeerLeft(removed_peer.uuid).to_string());
+            let event = Message::Text(JsonSignalEvent::Peer(PeerEvent::PeerLeft(removed_peer.uuid)).to_string());
             for peer_id in other_peers {
                 match state.try_send(peer_id, event.clone()) {
                     Ok(()) => info!("Sent peer remove to: {:?}", peer_id),
@@ -116,7 +116,7 @@ mod tests {
         ServerState,
     };
     use futures::{pin_mut, SinkExt, StreamExt};
-    use matchbox_protocol::{JsonPeerEvent, PeerId};
+    use matchbox_protocol::{JsonSignalEvent, PeerEvent, PeerId};
     use matchbox_signaling::{SignalingServer, SignalingServerBuilder};
     use std::{net::Ipv4Addr, str::FromStr, time::Duration};
     use tokio::{net::TcpStream, select, time};
@@ -155,17 +155,17 @@ mod tests {
     // Helper to take the next PeerEvent from a stream
     async fn recv_peer_event(
         client: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
-    ) -> JsonPeerEvent {
+    ) -> JsonSignalEvent {
         let message: Message = client
             .next()
             .await
             .expect("some message")
             .expect("socket message");
-        JsonPeerEvent::from_str(&message.to_string()).expect("json peer event")
+        JsonSignalEvent::from_str(&message.to_string()).expect("json peer event")
     }
 
-    fn get_peer_id(peer_event: JsonPeerEvent) -> PeerId {
-        if let JsonPeerEvent::IdAssigned(id) = peer_event {
+    fn get_peer_id(peer_event: JsonSignalEvent) -> PeerId {
+        if let JsonSignalEvent::Peer(PeerEvent::IdAssigned(id)) = peer_event {
             id
         } else {
             panic!("Peer_event was not IdAssigned: {peer_event:?}");
@@ -196,7 +196,7 @@ mod tests {
 
         let id_assigned_event = recv_peer_event(&mut client).await;
 
-        assert!(matches!(id_assigned_event, JsonPeerEvent::IdAssigned(..)));
+        assert!(matches!(id_assigned_event, JsonSignalEvent::Peer(PeerEvent::IdAssigned(..))));
     }
 
     #[tokio::test]
@@ -221,7 +221,7 @@ mod tests {
 
         let new_peer_event = recv_peer_event(&mut client_a).await;
 
-        assert_eq!(new_peer_event, JsonPeerEvent::NewPeer(b_uuid));
+        assert_eq!(new_peer_event, JsonSignalEvent::Peer(PeerEvent::NewPeer(b_uuid)));
     }
 
     #[tokio::test]
@@ -246,13 +246,13 @@ mod tests {
 
         // Ensure Peer B was received
         let new_peer_event = recv_peer_event(&mut client_a).await;
-        assert_eq!(new_peer_event, JsonPeerEvent::NewPeer(b_uuid));
+        assert_eq!(new_peer_event, JsonSignalEvent::Peer(PeerEvent::NewPeer(b_uuid)));
 
         // Disconnect Peer B
         _ = client_b.close(None).await;
         let peer_left_event = recv_peer_event(&mut client_a).await;
 
-        assert_eq!(peer_left_event, JsonPeerEvent::PeerLeft(b_uuid));
+        assert_eq!(peer_left_event, JsonSignalEvent::Peer(PeerEvent::PeerLeft(b_uuid)));
     }
 
     #[tokio::test]
@@ -277,7 +277,7 @@ mod tests {
 
         let new_peer_event = recv_peer_event(&mut client_a).await;
         let peer_uuid = match new_peer_event {
-            JsonPeerEvent::NewPeer(PeerId(peer_uuid)) => peer_uuid.to_string(),
+            JsonSignalEvent::Peer(PeerEvent::NewPeer(PeerId(peer_uuid))) => peer_uuid.to_string(),
             _ => panic!("unexpected event"),
         };
 
@@ -290,10 +290,10 @@ mod tests {
         let signal_event = recv_peer_event(&mut client_b).await;
         assert_eq!(
             signal_event,
-            JsonPeerEvent::Signal {
+            JsonSignalEvent::Peer(PeerEvent::Signal {
                 data: serde_json::Value::String("123".to_string()),
                 sender: a_uuid,
-            }
+            })
         );
     }
 
@@ -335,8 +335,8 @@ mod tests {
         let new_peer_b = recv_peer_event(&mut client_a).await;
         let new_peer_d = recv_peer_event(&mut client_c).await;
 
-        assert_eq!(new_peer_b, JsonPeerEvent::NewPeer(b_uuid));
-        assert_eq!(new_peer_d, JsonPeerEvent::NewPeer(d_uuid));
+        assert_eq!(new_peer_b, JsonSignalEvent::Peer(PeerEvent::NewPeer(b_uuid)));
+        assert_eq!(new_peer_d, JsonSignalEvent::Peer(PeerEvent::NewPeer(d_uuid)));
 
         let timeout = time::sleep(Duration::from_millis(100));
         pin_mut!(timeout);
@@ -378,7 +378,7 @@ mod tests {
         // Clients should be matched in pairs as they arrive, i.e. a + b and c + d
         let new_peer_c = recv_peer_event(&mut client_a).await;
 
-        assert_eq!(new_peer_c, JsonPeerEvent::NewPeer(c_uuid));
+        assert_eq!(new_peer_c, JsonSignalEvent::Peer(PeerEvent::NewPeer(c_uuid)));
 
         let timeout = time::sleep(Duration::from_millis(100));
         pin_mut!(timeout);
@@ -428,8 +428,8 @@ mod tests {
         let new_peer_c = recv_peer_event(&mut client_a).await;
         let new_peer_d = recv_peer_event(&mut client_b).await;
 
-        assert_eq!(new_peer_c, JsonPeerEvent::NewPeer(c_uuid));
-        assert_eq!(new_peer_d, JsonPeerEvent::NewPeer(d_uuid));
+        assert_eq!(new_peer_c, JsonSignalEvent::Peer(PeerEvent::NewPeer(c_uuid)));
+        assert_eq!(new_peer_d, JsonSignalEvent::Peer(PeerEvent::NewPeer(d_uuid)));
 
         let timeout = time::sleep(Duration::from_millis(100));
         pin_mut!(timeout);
@@ -486,13 +486,13 @@ mod tests {
         let new_peer_c = recv_peer_event(&mut client_a).await;
         let new_peer_d = recv_peer_event(&mut client_b).await;
         let new_peer_e = recv_peer_event(&mut client_b).await;
-        assert_eq!(new_peer_e, JsonPeerEvent::NewPeer(e_uuid));
+        assert_eq!(new_peer_e, JsonSignalEvent::Peer(PeerEvent::NewPeer(e_uuid)));
         let new_peer_e = recv_peer_event(&mut client_d).await;
 
-        assert_eq!(new_peer_c, JsonPeerEvent::NewPeer(c_uuid));
-        assert_eq!(new_peer_d, JsonPeerEvent::NewPeer(d_uuid));
-        assert_eq!(new_peer_d, JsonPeerEvent::NewPeer(d_uuid));
-        assert_eq!(new_peer_e, JsonPeerEvent::NewPeer(e_uuid));
+        assert_eq!(new_peer_c, JsonSignalEvent::Peer(PeerEvent::NewPeer(c_uuid)));
+        assert_eq!(new_peer_d, JsonSignalEvent::Peer(PeerEvent::NewPeer(d_uuid)));
+        assert_eq!(new_peer_d, JsonSignalEvent::Peer(PeerEvent::NewPeer(d_uuid)));
+        assert_eq!(new_peer_e, JsonSignalEvent::Peer(PeerEvent::NewPeer(e_uuid)));
 
         let timeout = time::sleep(Duration::from_millis(100));
         pin_mut!(timeout);

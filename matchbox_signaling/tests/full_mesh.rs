@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use futures::{SinkExt, StreamExt};
-    use matchbox_protocol::{JsonPeerEvent, PeerId};
+    use matchbox_protocol::{JsonSignalEvent, PeerEvent, PeerId};
     use matchbox_signaling::SignalingServer;
     use std::{net::Ipv4Addr, str::FromStr};
     use tokio::{
@@ -13,14 +13,14 @@ mod tests {
     // Helper to take the next PeerEvent from a stream
     async fn recv_peer_event(
         client: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
-    ) -> JsonPeerEvent {
+    ) -> JsonSignalEvent {
         let message: Message = client.next().await.unwrap().unwrap();
-        JsonPeerEvent::from_str(&message.to_string()).expect("json peer event")
+        JsonSignalEvent::from_str(&message.to_string()).expect("json peer event")
     }
 
     // Helper to extract PeerId when expecting an Id assignment
-    fn get_peer_id(peer_event: JsonPeerEvent) -> PeerId {
-        if let JsonPeerEvent::IdAssigned(id) = peer_event {
+    fn get_peer_id(peer_event: JsonSignalEvent) -> PeerId {
+        if let JsonSignalEvent::Peer(PeerEvent::IdAssigned(id)) = peer_event {
             id
         } else {
             panic!("Peer_event was not IdAssigned: {peer_event:?}");
@@ -51,7 +51,7 @@ mod tests {
 
         let id_assigned_event = recv_peer_event(&mut client).await;
 
-        assert!(matches!(id_assigned_event, JsonPeerEvent::IdAssigned(..)));
+        assert!(matches!(id_assigned_event, JsonSignalEvent::Peer(PeerEvent::IdAssigned(..))));
     }
 
     #[tokio::test]
@@ -76,7 +76,7 @@ mod tests {
 
         let new_peer_event = recv_peer_event(&mut client_a).await;
 
-        assert_eq!(new_peer_event, JsonPeerEvent::NewPeer(b_uuid));
+        assert_eq!(new_peer_event, JsonSignalEvent::Peer(PeerEvent::NewPeer(b_uuid)));
     }
 
     #[tokio::test]
@@ -101,13 +101,13 @@ mod tests {
 
         // Ensure Peer B was received
         let new_peer_event = recv_peer_event(&mut client_a).await;
-        assert_eq!(new_peer_event, JsonPeerEvent::NewPeer(b_uuid));
+        assert_eq!(new_peer_event, JsonSignalEvent::Peer(PeerEvent::NewPeer(b_uuid)));
 
         // Disconnect Peer B
         _ = client_b.close(None).await;
         let peer_left_event = recv_peer_event(&mut client_a).await;
 
-        assert_eq!(peer_left_event, JsonPeerEvent::PeerLeft(b_uuid));
+        assert_eq!(peer_left_event, JsonSignalEvent::Peer(PeerEvent::PeerLeft(b_uuid)));
     }
 
     #[tokio::test]
@@ -132,7 +132,7 @@ mod tests {
 
         let new_peer_event = recv_peer_event(&mut client_a).await;
         let peer_uuid = match new_peer_event {
-            JsonPeerEvent::NewPeer(PeerId(peer_uuid)) => peer_uuid.to_string(),
+            JsonSignalEvent::Peer(PeerEvent::NewPeer(PeerId(peer_uuid))) => peer_uuid.to_string(),
             _ => panic!("unexpected event"),
         };
 
@@ -145,10 +145,10 @@ mod tests {
         let signal_event = recv_peer_event(&mut client_b).await;
         assert_eq!(
             signal_event,
-            JsonPeerEvent::Signal {
+            JsonSignalEvent::Peer(PeerEvent::Signal {
                 data: serde_json::Value::String("123".to_string()),
                 sender: a_uuid,
-            }
+            })
         );
     }
 

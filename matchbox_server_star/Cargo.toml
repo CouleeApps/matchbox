@@ -1,5 +1,5 @@
 [package]
-name = "matchbox_server"
+name = "matchbox_server_star"
 version = "0.7.0"
 authors = ["Johan Helsing <johanhelsing@gmail.com>"]
 edition = "2021"

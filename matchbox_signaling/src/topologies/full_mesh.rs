@@ -13,7 +13,7 @@ use crate::{
 use async_trait::async_trait;
 use axum::extract::ws::Message;
 use futures::StreamExt;
-use matchbox_protocol::{JsonPeerEvent, PeerId, PeerRequest};
+use matchbox_protocol::{JsonSignalEvent, PeerEvent, PeerId, PeerRequest};
 use std::collections::HashMap;
 use tracing::{error, info, warn};
 
@@ -85,10 +85,10 @@ impl SignalingTopology<FullMeshCallbacks, FullMeshState> for FullMesh {
             match request {
                 PeerRequest::Signal { receiver, data } => {
                     let event = Message::Text(
-                        JsonPeerEvent::Signal {
+                        JsonSignalEvent::Peer(PeerEvent::Signal {
                             sender: peer_id,
                             data,
-                        }
+                        })
                         .to_string(),
                     );
                     if let Err(e) = state.try_send_to_peer(receiver, event) {
@@ -130,7 +130,7 @@ impl FullMeshState {
     /// Add a peer, returning peers that already existed
     pub fn add_peer(&mut self, peer: PeerId, sender: SignalingChannel) {
         // Alert all peers of new user
-        let event = Message::Text(JsonPeerEvent::NewPeer(peer).to_string());
+        let event = Message::Text(JsonSignalEvent::Peer(PeerEvent::NewPeer(peer)).to_string());
         // Safety: Lock must be scoped/dropped to ensure no deadlock with loop
         let peers = { self.peers.lock().unwrap().clone() };
         peers.keys().for_each(|peer_id| {
@@ -153,7 +153,7 @@ impl FullMeshState {
             .map(|sender| (*peer_id, sender));
         if let Some((peer_id, _sender)) = removed_peer {
             // Tell each connected peer about the disconnected peer.
-            let event = Message::Text(JsonPeerEvent::PeerLeft(peer_id).to_string());
+            let event = Message::Text(JsonSignalEvent::Peer(PeerEvent::PeerLeft(peer_id)).to_string());
             // Safety: Lock must be scoped/dropped to ensure no deadlock with loop
             let peers = { self.peers.lock().unwrap().clone() };
             peers.keys().for_each(

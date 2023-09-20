@@ -16,7 +16,7 @@ use axum::{
 };
 use futures::{stream::SplitStream, StreamExt};
 use hyper::{HeaderMap, StatusCode};
-use matchbox_protocol::{JsonPeerEvent, PeerId};
+use matchbox_protocol::{JsonSignalEvent, PeerEvent, PeerId};
 use std::{collections::HashMap, net::SocketAddr};
 use tracing::{error, info};
 
@@ -90,7 +90,7 @@ where
         let sender = spawn_sender_task(ws_sink);
 
         // Send ID to peer
-        let event_text = JsonPeerEvent::IdAssigned(peer_id).to_string();
+        let event_text = JsonSignalEvent::Peer(PeerEvent::IdAssigned(peer_id)).to_string();
         let event = Message::Text(event_text.clone());
         if let Err(e) = try_send(&sender, event) {
             error!("error sending to {peer_id}: {e:?}");

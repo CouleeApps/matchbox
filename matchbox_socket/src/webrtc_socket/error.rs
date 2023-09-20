@@ -1,4 +1,4 @@
-use crate::webrtc_socket::messages::PeerEvent;
+use crate::webrtc_socket::messages::SignalEvent;
 use cfg_if::cfg_if;
 use futures_channel::mpsc::TrySendError;
 
@@ -25,7 +25,7 @@ pub enum ChannelError {
 pub enum SignalingError {
     // Common
     #[error("failed to send event to signaling server: {0}")]
-    Undeliverable(#[from] TrySendError<PeerEvent>),
+    Undeliverable(#[from] TrySendError<SignalEvent>),
     #[error("The stream is exhausted")]
     StreamExhausted,
     #[error("Message received in unknown format")]

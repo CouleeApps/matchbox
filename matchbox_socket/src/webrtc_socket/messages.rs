@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Events go from signaling server to peer
-pub type PeerEvent = matchbox_protocol::PeerEvent<PeerSignal>;
+pub type SignalEvent = matchbox_protocol::SignalEvent<PeerSignal>;
 
 /// Requests go from peer to signaling server
 pub type PeerRequest = matchbox_protocol::PeerRequest<PeerSignal>;

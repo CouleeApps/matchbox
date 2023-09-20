@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use axum::extract::ws::Message;
 use futures::StreamExt;
-use matchbox_protocol::{JsonPeerEvent, PeerRequest};
+use matchbox_protocol::{JsonSignalEvent, PeerEvent, PeerRequest};
 use matchbox_signaling::{
     common_logic::parse_request, ClientRequestError, NoCallbacks, SignalingTopology, WsStateMeta,
 };
@@ -33,7 +33,7 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
 
         let room_id = state.add_peer(peer);
 
-        let event_text = JsonPeerEvent::NewPeer(peer_id).to_string();
+        let event_text = JsonSignalEvent::Peer(PeerEvent::NewPeer(peer_id)).to_string();
         let event = Message::Text(event_text.clone());
 
         if state.is_peer_host(&peer_id, &room_id) {
@@ -84,10 +84,10 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
             match request {
                 PeerRequest::Signal { receiver, data } => {
                     let event = Message::Text(
-                        JsonPeerEvent::Signal {
+                        JsonSignalEvent::Peer(PeerEvent::Signal {
                             sender: peer_id,
                             data,
-                        }
+                        })
                         .to_string(),
                     );
                     if let Some(peer) = state.get_peer(&receiver) {
@@ -116,7 +116,7 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
                         .into_iter()
                         .filter(|other_id| *other_id != peer_id);
                     let event =
-                        Message::Text(JsonPeerEvent::PeerLeft(removed_peer.uuid).to_string());
+                        Message::Text(JsonSignalEvent::Peer(PeerEvent::PeerLeft(removed_peer.uuid)).to_string());
                     for peer_id in other_peers {
                         match state.try_send(peer_id, event.clone()) {
                             Ok(()) => info!("Sent host peer remove to: {:?}", peer_id),
@@ -126,7 +126,7 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
                 } else {
                     // Tell just the host that someone has left (host gets to tell everyone else)
                     let event =
-                        Message::Text(JsonPeerEvent::PeerLeft(removed_peer.uuid).to_string());
+                        Message::Text(JsonSignalEvent::Peer(PeerEvent::PeerLeft(removed_peer.uuid)).to_string());
                     if let Some(host_id) = state.get_room_host_peer(&room_id) {
                         match state.try_send(host_id.clone(), event) {
                             Ok(()) => info!("Sent peer remove to host: {:?}", host_id),

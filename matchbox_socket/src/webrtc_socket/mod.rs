@@ -12,7 +12,7 @@ use futures_channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures_timer::Delay;
 use futures_util::select;
 use log::{debug, warn};
-use matchbox_protocol::PeerId;
+use matchbox_protocol::{PeerId, PeerEvent};
 use messages::*;
 pub(crate) use socket::MessageLoopChannels;
 pub use socket::{
@@ -53,7 +53,7 @@ async fn signaling_loop<S: Signaller>(
     attempts: Option<u16>,
     room_url: String,
     mut requests_receiver: futures_channel::mpsc::UnboundedReceiver<PeerRequest>,
-    events_sender: futures_channel::mpsc::UnboundedSender<PeerEvent>,
+    events_sender: futures_channel::mpsc::UnboundedSender<SignalEvent>,
 ) -> Result<(), SignalingError> {
     let mut signaller = S::new(attempts, &room_url).await?;
 
@@ -69,7 +69,7 @@ async fn signaling_loop<S: Signaller>(
                 match message {
                     Ok(message) => {
                         debug!("Received {message}");
-                        let event: PeerEvent = serde_json::from_str(&message)
+                        let event: SignalEvent = serde_json::from_str(&message)
                             .unwrap_or_else(|err| panic!("couldn't parse peer event: {err}.\nEvent: {message}"));
                         events_sender.unbounded_send(event).map_err(SignalingError::from)?;
                     }
@@ -170,17 +170,29 @@ async fn message_loop<M: Messenger>(
                 if let Some(event) = message {
                     debug!("{event:?}");
                     match event {
-                        PeerEvent::IdAssigned(peer_uuid) => {
+                        SignalEvent::RoomOpened(id) => {
+
+                        },
+                        SignalEvent::RoomClosed => {
+
+                        },
+                        SignalEvent::HostStatus(host) => {
+
+                        },
+                        SignalEvent::Data(data) => {
+
+                        },
+                        SignalEvent::Peer(PeerEvent::IdAssigned(peer_uuid)) => {
                             id_tx.try_send(peer_uuid.to_owned()).unwrap();
                         },
-                        PeerEvent::NewPeer(peer_uuid) => {
+                        SignalEvent::Peer(PeerEvent::NewPeer(peer_uuid)) => {
                             let (signal_tx, signal_rx) = futures_channel::mpsc::unbounded();
                             handshake_signals.insert(peer_uuid, signal_tx);
                             let signal_peer = SignalPeer::new(peer_uuid, requests_sender.clone());
                             handshakes.push(M::offer_handshake(signal_peer, signal_rx, messages_from_peers_tx.clone(), ice_server_config, channel_configs))
                         },
-                        PeerEvent::PeerLeft(peer_uuid) => {peer_state_tx.unbounded_send((peer_uuid, PeerState::Disconnected)).expect("fail to report peer as disconnected");},
-                        PeerEvent::Signal { sender, data } => {
+                        SignalEvent::Peer(PeerEvent::PeerLeft(peer_uuid)) => {peer_state_tx.unbounded_send((peer_uuid, PeerState::Disconnected)).expect("fail to report peer as disconnected");},
+                        SignalEvent::Peer(PeerEvent::Signal { sender, data }) => {
                             let signal_tx = handshake_signals.entry(sender).or_insert_with(|| {
                                 let (from_peer_tx, peer_signal_rx) = futures_channel::mpsc::unbounded();
                                 let signal_peer = SignalPeer::new(sender, requests_sender.clone());

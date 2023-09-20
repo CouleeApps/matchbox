@@ -1,7 +1,7 @@
 use super::error::ChannelError;
 use crate::{
     webrtc_socket::{
-        message_loop, signaling_loop, MessageLoopFuture, Packet, PeerEvent, PeerRequest,
+        message_loop, signaling_loop, MessageLoopFuture, Packet, SignalEvent, PeerRequest,
         UseMessenger, UseSignaller,
     },
     Error,
@@ -614,7 +614,7 @@ async fn wait_for_ready(channel_ready_rx: Vec<futures_channel::mpsc::Receiver<()
 /// All the channels needed for the messaging loop.
 pub struct MessageLoopChannels {
     pub requests_sender: futures_channel::mpsc::UnboundedSender<PeerRequest>,
-    pub events_receiver: futures_channel::mpsc::UnboundedReceiver<PeerEvent>,
+    pub events_receiver: futures_channel::mpsc::UnboundedReceiver<SignalEvent>,
     pub peer_messages_out_rx: Vec<futures_channel::mpsc::UnboundedReceiver<(PeerId, Packet)>>,
     pub peer_state_tx: futures_channel::mpsc::UnboundedSender<(PeerId, PeerState)>,
     pub messages_from_peers_tx: Vec<futures_channel::mpsc::UnboundedSender<(PeerId, Packet)>>,
@@ -630,7 +630,7 @@ async fn run_socket(
     debug!("Starting WebRtcSocket");
 
     let (requests_sender, requests_receiver) = futures_channel::mpsc::unbounded::<PeerRequest>();
-    let (events_sender, events_receiver) = futures_channel::mpsc::unbounded::<PeerEvent>();
+    let (events_sender, events_receiver) = futures_channel::mpsc::unbounded::<SignalEvent>();
 
     let signaling_loop_fut = signaling_loop::<UseSignaller>(
         config.attempts,

@@ -3,10 +3,11 @@ use clap::Parser;
 use matchbox_signaling::SignalingServerBuilder;
 use tracing::info;
 use tracing_subscriber::prelude::*;
+use matchbox_protocol::RoomId;
 
 use crate::args::Args;
 use crate::{
-    state::{RequestedRoom, RoomId, ServerState},
+    state::{RequestedRoom, ServerState},
     topology::MatchmakingDemoTopology,
 };
 

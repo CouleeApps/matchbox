@@ -4,7 +4,7 @@ use std::{
 };
 
 use axum::{extract::ws::Message, Error};
-use matchbox_protocol::PeerId;
+use matchbox_protocol::{PeerId, RoomId};
 use matchbox_signaling::{
     common_logic::{self, StateObj},
     SignalingError, SignalingState,
@@ -12,9 +12,6 @@ use matchbox_signaling::{
 use serde::Deserialize;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
-
-#[derive(Debug, Deserialize, Default, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct RoomId(pub String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RequestedRoom {
@@ -154,9 +151,9 @@ impl ServerState {
     }
 
     /// Send a message to a peer without blocking.
-    pub fn try_send(&self, id: PeerId, message: Message) -> Result<(), SignalingError> {
+    pub fn try_send(&self, id: &PeerId, message: Message) -> Result<(), SignalingError> {
         let clients = self.clients.lock().unwrap();
-        match clients.get(&id) {
+        match clients.get(id) {
             Some(peer) => Ok(common_logic::try_send(&peer.sender, message)?),
             None => Err(SignalingError::UnknownPeer),
         }

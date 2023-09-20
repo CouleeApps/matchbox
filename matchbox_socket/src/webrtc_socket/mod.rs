@@ -11,7 +11,7 @@ use futures::{future::Either, stream::FuturesUnordered, Future, FutureExt, Strea
 use futures_channel::mpsc::{UnboundedReceiver, UnboundedSender};
 use futures_timer::Delay;
 use futures_util::select;
-use log::{debug, warn};
+use log::{debug, info, warn};
 use matchbox_protocol::{PeerId, PeerEvent};
 use messages::*;
 pub(crate) use socket::MessageLoopChannels;
@@ -171,16 +171,16 @@ async fn message_loop<M: Messenger>(
                     debug!("{event:?}");
                     match event {
                         SignalEvent::RoomOpened(id) => {
-
+                            info!("SignalEvent::RoomOpened({id:?})");
                         },
                         SignalEvent::RoomClosed => {
-
+                            info!("SignalEvent::RoomClosed()");
                         },
                         SignalEvent::HostStatus(host) => {
-
+                            info!("SignalEvent::HostStatus({host})");
                         },
                         SignalEvent::Data(data) => {
-
+                            info!("SignalEvent::Data({data:?})");
                         },
                         SignalEvent::Peer(PeerEvent::IdAssigned(peer_uuid)) => {
                             id_tx.try_send(peer_uuid.to_owned()).unwrap();

@@ -9,6 +9,10 @@ use uuid::Uuid;
 )]
 pub struct PeerId(pub Uuid);
 
+/// Format for a room id
+#[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq, Eq, Hash)]
+pub struct RoomId(pub String);
+
 /// Requests go from peer to signaling server
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PeerRequest<S> {
@@ -34,7 +38,7 @@ pub enum PeerEvent<S> {
 pub enum SignalEvent<S> {
     Peer(PeerEvent<S>),
     /// Id of new room created
-    RoomOpened(String),
+    RoomOpened(RoomId),
     /// Host has left
     RoomClosed,
     /// If we are the host

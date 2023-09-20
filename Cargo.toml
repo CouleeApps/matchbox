@@ -4,6 +4,7 @@ members = [
   "matchbox_protocol",
   "matchbox_socket",
   "matchbox_server",
+  "matchbox_server_star",
   "matchbox_signaling",
   "examples/*",
 ]

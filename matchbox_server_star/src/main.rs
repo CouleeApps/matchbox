@@ -1,17 +1,18 @@
-mod args;
-mod state;
-mod topology;
-
-use crate::{
-    state::{RequestedRoom, RoomId, ServerState},
-    topology::MatchmakingDemoTopology,
-};
-use args::Args;
 use axum::{http::StatusCode, response::IntoResponse, routing::get};
 use clap::Parser;
 use matchbox_signaling::SignalingServerBuilder;
 use tracing::info;
 use tracing_subscriber::prelude::*;
+
+use crate::args::Args;
+use crate::{
+    state::{RequestedRoom, RoomId, ServerState},
+    topology::MatchmakingDemoTopology,
+};
+
+mod args;
+mod state;
+mod topology;
 
 fn setup_logging() {
     tracing_subscriber::registry()
@@ -41,12 +42,8 @@ async fn main() {
         .on_connection_request({
             let mut state = state.clone();
             move |connection| {
-                let room_id = RoomId(connection.path.clone().unwrap_or_default());
-                let next = connection
-                    .query_params
-                    .get("next")
-                    .and_then(|next| next.parse::<usize>().ok());
-                let room = RequestedRoom { id: room_id, next };
+                let room_id = connection.path.clone().map(|path| RoomId(path));
+                let room = RequestedRoom { id: room_id };
                 state.add_waiting_client(connection.origin, room);
                 Ok(true) // allow all clients
             }

@@ -168,6 +168,25 @@ impl ServerState {
         peer
     }
 
+    pub fn remove_room(&mut self, room_id: &RoomId) -> Option<Room> {
+        let mut state = self.active_state.lock().unwrap();
+
+        let room = state.rooms.remove(room_id);
+
+        if let Some(room) = room.as_ref() {
+            debug!("Room removed: {room_id:?}");
+            for peer in &room.peers {
+                if let Some(peer) = state.clients.get_mut(peer) {
+                    peer.room = None;
+                }
+            }
+        } else {
+            debug!("Room not removed, doesn't exist: {room_id:?}");
+        }
+
+        room
+    }
+
     /// Send a message to a peer without blocking.
     pub fn try_send(&self, id: &PeerId, message: Message) -> Result<(), SignalingError> {
         let clients = &self.active_state.lock().unwrap().clients;

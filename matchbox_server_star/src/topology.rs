@@ -146,6 +146,9 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
                             Err(e) => error!("Failure sending room close: {e:?}"),
                         }
                     }
+
+                    // Now delete the room
+                    let _ = state.remove_room(&room_id);
                 } else {
                     // Tell just the host that someone has left (host gets to tell everyone else)
                     let event =

@@ -11,6 +11,7 @@ use matchbox_signaling::{
 };
 use serde::Deserialize;
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::debug;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -34,11 +35,16 @@ pub(crate) struct Room {
 }
 
 #[derive(Default, Debug, Clone)]
+pub(crate) struct ActiveState {
+    clients: HashMap<PeerId, Peer>,
+    rooms: HashMap<RoomId, Room>,
+}
+
+#[derive(Default, Debug, Clone)]
 pub(crate) struct ServerState {
     clients_waiting: StateObj<HashMap<SocketAddr, RequestedRoom>>,
     clients_in_queue: StateObj<HashMap<PeerId, RequestedRoom>>,
-    clients: StateObj<HashMap<PeerId, Peer>>,
-    rooms: StateObj<HashMap<RoomId, Room>>,
+    active_state: StateObj<ActiveState>,
 }
 
 impl SignalingState for ServerState {}
@@ -71,44 +77,51 @@ impl ServerState {
     }
 
     /// Add a peer, returning the room the peer was added to
-    pub fn add_peer(&mut self, peer: Peer) -> RoomId {
+    pub fn add_peer(&mut self, mut peer: Peer) -> RoomId {
+        let mut state = self.active_state.lock().unwrap();
         let peer_id = peer.uuid;
         let requested_room = peer.requested_room.clone();
-        {
-            let mut clients = self.clients.lock().unwrap();
-            clients.insert(peer.uuid, peer);
-        };
+
         let room_id = requested_room
             .id
             .unwrap_or_else(|| RoomId(Uuid::new_v4().to_string()));
         {
-            let mut rooms = self.rooms.lock().unwrap();
-            let room = rooms.entry(room_id.clone()).or_insert_with(|| Room {
-                id: room_id.clone(),
-                peers: Default::default(),
-                host: peer_id,
+            let room = state.rooms.entry(room_id.clone()).or_insert_with(|| {
+                debug!("Room added: {room_id:?}");
+                Room {
+                    id: room_id.clone(),
+                    peers: Default::default(),
+                    host: peer_id,
+                }
             });
+            let room_id = &room.id;
+            debug!("Peer added to room: {peer_id:?} / {room_id:?}");
             room.peers.insert(peer_id);
         }
-        {
-            let mut clients = self.clients.lock().unwrap();
-            let peer = clients.get_mut(&peer_id);
-            peer.expect("peer still exists").room = Some(room_id.clone());
-        }
+
+        peer.room = Some(room_id.clone());
+        state.clients.insert(peer.uuid, peer);
+        debug!("Peer added: {peer_id:?}");
+
         room_id
     }
 
     /// Get a peer
     pub fn get_peer(&self, peer_id: &PeerId) -> Option<Peer> {
-        let clients = self.clients.lock().unwrap();
-        clients.get(peer_id).cloned()
+        self.active_state
+            .lock()
+            .unwrap()
+            .clients
+            .get(peer_id)
+            .cloned()
     }
 
     /// Get the peers in a room currently
     pub fn get_room_peers(&self, room_id: &RoomId) -> Vec<PeerId> {
-        self.rooms
+        self.active_state
             .lock()
             .unwrap()
+            .rooms
             .get(room_id)
             .map(|room| room.peers.iter().copied().collect::<Vec<PeerId>>())
             .unwrap_or_default()
@@ -116,18 +129,20 @@ impl ServerState {
 
     ///
     pub fn get_room_host_peer(&self, room_id: &RoomId) -> Option<PeerId> {
-        self.rooms
+        self.active_state
             .lock()
             .unwrap()
+            .rooms
             .get(room_id)
             .map(|room| room.host)
     }
 
     ///
     pub fn is_peer_host(&self, peer: &PeerId, room_id: &RoomId) -> bool {
-        self.rooms
+        self.active_state
             .lock()
             .unwrap()
+            .rooms
             .get(room_id)
             .map(|room| room.host == *peer)
             .unwrap_or(false)
@@ -136,23 +151,26 @@ impl ServerState {
     /// Remove a peer from the state if it existed, returning the peer removed.
     #[must_use]
     pub fn remove_peer(&mut self, peer_id: &PeerId) -> Option<Peer> {
-        let peer = { self.clients.lock().unwrap().remove(peer_id) };
+        let mut state = { self.active_state.lock().unwrap() };
+        let peer = { state.clients.remove(peer_id) };
 
-        if let Some(room_id) = peer.as_ref().and_then(|peer| peer.room.clone()) {
-            // Best effort to remove peer from their room
-            _ = self
-                .rooms
-                .lock()
-                .unwrap()
-                .get_mut(&room_id)
-                .map(|room| room.peers.remove(peer_id));
+        if let Some(peer) = peer.as_ref() {
+            debug!("Peer removed: {peer_id:?}");
+            if let Some(room_id) = &peer.room {
+                debug!("Peer removed from room: {peer_id:?} / {room_id:?}");
+                // Best effort to remove peer from their room
+                _ = state
+                    .rooms
+                    .get_mut(room_id)
+                    .map(|room| room.peers.remove(peer_id));
+            }
         }
         peer
     }
 
     /// Send a message to a peer without blocking.
     pub fn try_send(&self, id: &PeerId, message: Message) -> Result<(), SignalingError> {
-        let clients = self.clients.lock().unwrap();
+        let clients = &self.active_state.lock().unwrap().clients;
         match clients.get(id) {
             Some(peer) => Ok(common_logic::try_send(&peer.sender, message)?),
             None => Err(SignalingError::UnknownPeer),

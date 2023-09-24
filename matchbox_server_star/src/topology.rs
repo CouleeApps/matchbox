@@ -50,24 +50,27 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
             }
         } else {
             // Existing room, tell the host we've joined
-            let event_text = JsonSignalEvent::Peer(PeerEvent::NewPeer(peer_id)).to_string();
-            let event = Message::Text(event_text.clone());
-
             if let Some(host_id) = state.get_room_host_peer(&room_id) {
-                if let Err(e) = state.try_send(&host_id, event.clone()) {
-                    error!("error sending to {host_id:?}: {e:?}");
+                // Tell us who the host is
+                let event_text =
+                    JsonSignalEvent::Peer(PeerEvent::NewPeer(host_id.clone())).to_string();
+                let event = Message::Text(event_text.clone());
+
+                if let Err(e) = state.try_send(&peer_id, event.clone()) {
+                    error!("error sending to {peer_id:?}: {e:?}");
                 } else {
-                    info!("{host_id} -> {event_text:?}");
+                    info!("{event_text:?} -> {peer_id}");
+                }
+
+                // Tell us we're not the host
+                let event_text = JsonSignalEvent::HostStatus(false).to_string();
+                let event = Message::Text(event_text.clone());
+                match state.try_send(&peer_id, event) {
+                    Ok(a) => info!("{event_text:?} -> {peer_id}"),
+                    Err(e) => error!("failed sending {event_text:?} to {peer_id}"),
                 }
             } else {
                 error!("Somehow no host for room {room_id:?}");
-            }
-
-            let event_text = JsonSignalEvent::HostStatus(false).to_string();
-            let event = Message::Text(event_text.clone());
-            match state.try_send(&peer_id, event) {
-                Ok(a) => info!("HostStatus(false) -> {peer_id}"),
-                Err(e) => error!("failed sending HostStatus(false) to {peer_id}"),
             }
         }
 
@@ -130,16 +133,16 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
                         .filter(|&other_id| *other_id != peer_id)
                         .map(|&other_id| other_id.clone())
                         .collect::<Vec<_>>();
-                    let event =
-                        Message::Text(JsonSignalEvent::Peer(PeerEvent::PeerLeft(removed_peer.uuid)).to_string());
+                    let event = Message::Text(
+                        JsonSignalEvent::Peer(PeerEvent::PeerLeft(removed_peer.uuid)).to_string(),
+                    );
                     for peer_id in &other_peers {
                         match state.try_send(peer_id, event.clone()) {
                             Ok(()) => info!("Sent host peer remove to: {:?}", peer_id),
                             Err(e) => error!("Failure sending host peer remove: {e:?}"),
                         }
                     }
-                    let event =
-                        Message::Text(JsonSignalEvent::RoomClosed.to_string());
+                    let event = Message::Text(JsonSignalEvent::RoomClosed.to_string());
                     for peer_id in &other_peers {
                         match state.try_send(peer_id, event.clone()) {
                             Ok(()) => info!("Sent room close to: {:?}", peer_id),
@@ -151,8 +154,9 @@ impl SignalingTopology<NoCallbacks, ServerState> for MatchmakingDemoTopology {
                     let _ = state.remove_room(&room_id);
                 } else {
                     // Tell just the host that someone has left (host gets to tell everyone else)
-                    let event =
-                        Message::Text(JsonSignalEvent::Peer(PeerEvent::PeerLeft(removed_peer.uuid)).to_string());
+                    let event = Message::Text(
+                        JsonSignalEvent::Peer(PeerEvent::PeerLeft(removed_peer.uuid)).to_string(),
+                    );
                     if let Some(host_id) = state.get_room_host_peer(&room_id) {
                         match state.try_send(&host_id, event) {
                             Ok(()) => info!("Sent peer remove to host: {:?}", host_id),

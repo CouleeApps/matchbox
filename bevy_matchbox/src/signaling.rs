@@ -28,7 +28,7 @@ use matchbox_signaling::{
 ///
 /// fn start_server_system(mut commands: Commands) {
 ///     let builder = SignalingServerBuilder::new(
-///         (Ipv4Addr::UNSPECIFIED, 3536),
+///         (Ipv4Addr::UNSPECIFIED, 2053),
 ///         FullMesh,
 ///         FullMeshState::default(),
 ///     );
@@ -51,7 +51,7 @@ use matchbox_signaling::{
 ///
 /// fn start_server_system(mut commands: Commands) {
 ///     let server: MatchboxServer = SignalingServerBuilder::new(
-///         (Ipv4Addr::UNSPECIFIED, 3536),
+///         (Ipv4Addr::UNSPECIFIED, 2053),
 ///         FullMesh,
 ///         FullMeshState::default(),
 ///     ).into();

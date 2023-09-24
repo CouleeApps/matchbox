@@ -1,6 +1,7 @@
 # Bevy + GGRS
 
-Shows how to use `matchbox_socket` with `bevy` and `ggrs` using `bevy_matchbox` and `bevy_ggrs`, to create a simple working browser "game" (if moving cubes around on a plane can be called a game).
+Shows how to use `matchbox_socket` with `bevy` and `ggrs` using `bevy_matchbox` and `bevy_ggrs`, to create a simple
+working browser "game" (if moving cubes around on a plane can be called a game).
 
 ## Live Demo
 
@@ -18,15 +19,16 @@ You can open the browser console to get some rough idea about what's happening
 
 ## Instructions
 
-- Run the matchbox-provided [`matchbox_server`](../../matchbox_server/) ([help](../../matchbox_server/README.md)), or run your own on `ws://localhost:3536/`.
+- Run the matchbox-provided [`matchbox_server`](../../matchbox_server/) ([help](../../matchbox_server/README.md)), or
+  run your own on `ws://localhost:2053/`.
 - Run the demo (enough clients must connect before the game stats)
-  - [on Native](#run-on-native)
-  - [on WASM](#run-on-wasm)
+    - [on Native](#run-on-native)
+    - [on WASM](#run-on-wasm)
 
 ## Run on Native
 
 ```sh
-cargo run -- [--matchbox ws://127.0.0.1:3536] [--players 2] [--room <name>]
+cargo run -- [--matchbox ws://127.0.0.1:2053] [--players 2] [--room <name>]
 ```
 
 ## Run on WASM

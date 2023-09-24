@@ -32,7 +32,7 @@ async fn main() {
 async fn async_main() {
     info!("Connecting to matchbox");
     let (mut socket, loop_fut) =
-        WebRtcSocket::new_reliable("ws://localhost:3536/error_handling_example");
+        WebRtcSocket::new_reliable("ws://localhost:2053/error_handling_example");
 
     let loop_fut = async {
         match loop_fut.await {

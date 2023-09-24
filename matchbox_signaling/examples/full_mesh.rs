@@ -6,7 +6,7 @@ use tracing::info;
 async fn main() -> Result<(), matchbox_signaling::Error> {
     setup_logging();
 
-    let server = SignalingServer::full_mesh_builder((Ipv4Addr::UNSPECIFIED, 3536))
+    let server = SignalingServer::full_mesh_builder((Ipv4Addr::UNSPECIFIED, 2053))
         .on_connection_request(|connection| {
             info!("Connecting: {connection:?}");
             Ok(true) // Allow all connections

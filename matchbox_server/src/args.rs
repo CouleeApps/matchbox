@@ -8,6 +8,6 @@ use std::net::SocketAddr;
     rename_all_env = "screaming-snake"
 )]
 pub struct Args {
-    #[clap(default_value = "0.0.0.0:3536", env)]
+    #[clap(default_value = "0.0.0.0:2053", env)]
     pub host: SocketAddr,
 }

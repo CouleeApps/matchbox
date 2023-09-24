@@ -2,14 +2,16 @@
 
 This example shows one way failures can be handled, logging at the appropriate points.
 
-The example tries to connect to a room, then sends messages to all peers as quickly as possible, logging any messages received, then disconnects after a timeout.
+The example tries to connect to a room, then sends messages to all peers as quickly as possible, logging any messages
+received, then disconnects after a timeout.
 
 ## Instructions
 
-- Run the matchbox-provided [`matchbox_server`](../../matchbox_server/) ([help](../../matchbox_server/README.md)), or run your own on `ws://localhost:3536/`.
+- Run the matchbox-provided [`matchbox_server`](../../matchbox_server/) ([help](../../matchbox_server/README.md)), or
+  run your own on `ws://localhost:2053/`.
 - Run the demo
-  - [on Native](#run-on-native)
-  - [on WASM](#run-on-wasm)
+    - [on Native](#run-on-native)
+    - [on WASM](#run-on-wasm)
 
 ## Run on Native
 

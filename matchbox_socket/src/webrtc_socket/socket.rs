@@ -275,6 +275,7 @@ impl<C: BuildablePlurality> WebRtcSocketBuilder<C> {
             unreachable!();
         }
 
+        let (signal_tx, signal_rx) = futures_channel::mpsc::unbounded();
         let (peer_state_tx, peer_state_rx) = futures_channel::mpsc::unbounded();
 
         let (messages_from_peers_tx, messages_from_peers_rx) =
@@ -293,6 +294,7 @@ impl<C: BuildablePlurality> WebRtcSocketBuilder<C> {
             WebRtcSocket {
                 id: Default::default(),
                 id_rx,
+                signal_rx,
                 peer_state_rx,
                 peers: Default::default(),
                 channels,
@@ -302,6 +304,7 @@ impl<C: BuildablePlurality> WebRtcSocketBuilder<C> {
                 id_tx,
                 self.config,
                 peer_messages_out_rx,
+                signal_tx,
                 peer_state_tx,
                 messages_from_peers_tx,
             )),
@@ -358,6 +361,7 @@ impl WebRtcChannel {
 pub struct WebRtcSocket<C: ChannelPlurality = SingleChannel> {
     id: once_cell::race::OnceBox<PeerId>,
     id_rx: crossbeam_channel::Receiver<PeerId>,
+    signal_rx: futures_channel::mpsc::UnboundedReceiver<SignalEvent>,
     peer_state_rx: futures_channel::mpsc::UnboundedReceiver<(PeerId, PeerState)>,
     peers: HashMap<PeerId, PeerState>,
     channels: Vec<Option<WebRtcChannel>>,
@@ -440,6 +444,24 @@ impl<C: ChannelPlurality> WebRtcSocket<C> {
                         changes.push((id, state));
                     }
                 }
+                None => return Err(ChannelError::Closed),
+            }
+        }
+
+        Ok(changes)
+    }
+
+    pub fn update_signals(&mut self) -> Vec<SignalEvent> {
+        self.try_update_signals().unwrap()
+    }
+
+    pub fn try_update_signals(&mut self) -> Result<Vec<SignalEvent>, ChannelError> {
+        let mut changes = Vec::new();
+        while let Ok(res) = self.signal_rx.try_next() {
+            match res {
+                Some(event) => {
+                    changes.push(event);
+                },
                 None => return Err(ChannelError::Closed),
             }
         }
@@ -616,6 +638,7 @@ pub struct MessageLoopChannels {
     pub requests_sender: futures_channel::mpsc::UnboundedSender<PeerRequest>,
     pub events_receiver: futures_channel::mpsc::UnboundedReceiver<SignalEvent>,
     pub peer_messages_out_rx: Vec<futures_channel::mpsc::UnboundedReceiver<(PeerId, Packet)>>,
+    pub signal_tx: futures_channel::mpsc::UnboundedSender<SignalEvent>,
     pub peer_state_tx: futures_channel::mpsc::UnboundedSender<(PeerId, PeerState)>,
     pub messages_from_peers_tx: Vec<futures_channel::mpsc::UnboundedSender<(PeerId, Packet)>>,
 }
@@ -624,6 +647,7 @@ async fn run_socket(
     id_tx: crossbeam_channel::Sender<PeerId>,
     config: SocketConfig,
     peer_messages_out_rx: Vec<futures_channel::mpsc::UnboundedReceiver<(PeerId, Packet)>>,
+    signal_tx: futures_channel::mpsc::UnboundedSender<SignalEvent>,
     peer_state_tx: futures_channel::mpsc::UnboundedSender<(PeerId, PeerState)>,
     messages_from_peers_tx: Vec<futures_channel::mpsc::UnboundedSender<(PeerId, Packet)>>,
 ) -> Result<(), Error> {
@@ -643,6 +667,7 @@ async fn run_socket(
         requests_sender,
         events_receiver,
         peer_messages_out_rx,
+        signal_tx,
         peer_state_tx,
         messages_from_peers_tx,
     };

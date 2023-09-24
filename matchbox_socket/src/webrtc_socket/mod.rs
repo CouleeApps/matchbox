@@ -134,6 +134,7 @@ async fn message_loop<M: Messenger>(
         mut events_receiver,
         mut peer_messages_out_rx,
         messages_from_peers_tx,
+        signal_tx,
         peer_state_tx,
     } = channels;
 
@@ -168,19 +169,15 @@ async fn message_loop<M: Messenger>(
 
             message = events_receiver.next().fuse() => {
                 if let Some(event) = message {
-                    debug!("{event:?}");
+                    signal_tx.unbounded_send(event.clone()).expect("failed to send signal");
                     match event {
                         SignalEvent::RoomOpened(id) => {
-                            info!("SignalEvent::RoomOpened({id:?})");
                         },
                         SignalEvent::RoomClosed => {
-                            info!("SignalEvent::RoomClosed()");
                         },
                         SignalEvent::HostStatus(host) => {
-                            info!("SignalEvent::HostStatus({host})");
                         },
                         SignalEvent::Data(data) => {
-                            info!("SignalEvent::Data({data:?})");
                         },
                         SignalEvent::Peer(PeerEvent::IdAssigned(peer_uuid)) => {
                             id_tx.try_send(peer_uuid.to_owned()).unwrap();

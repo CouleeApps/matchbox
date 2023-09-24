@@ -7,7 +7,7 @@ pub type SignalEvent = matchbox_protocol::SignalEvent<PeerSignal>;
 pub type PeerRequest = matchbox_protocol::PeerRequest<PeerSignal>;
 
 /// Signals go from peer to peer via the signaling server
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum PeerSignal {
     IceCandidate(String),
     Offer(String),

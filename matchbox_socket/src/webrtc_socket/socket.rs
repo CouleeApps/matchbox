@@ -437,11 +437,18 @@ impl<C: ChannelPlurality> WebRtcSocket<C> {
     pub fn try_update_peers(&mut self) -> Result<Vec<(PeerId, PeerState)>, ChannelError> {
         let mut changes = Vec::new();
         while let Ok(res) = self.peer_state_rx.try_next() {
+            debug!("Peer state update: {res:?}");
             match res {
-                Some((id, state)) => {
-                    let old = self.peers.insert(id, state);
-                    if old != Some(state) {
-                        changes.push((id, state));
+                Some((id, PeerState::Connected)) => {
+                    let old = self.peers.insert(id, PeerState::Connected);
+                    if old != Some(PeerState::Connected) {
+                        changes.push((id, PeerState::Connected));
+                    }
+                }
+                Some((id, PeerState::Disconnected)) => {
+                    let old = self.peers.insert(id, PeerState::Disconnected);
+                    if old == Some(PeerState::Connected) {
+                        changes.push((id, PeerState::Disconnected));
                     }
                 }
                 None => return Err(ChannelError::Closed),

@@ -4704,6 +4704,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "unreliable_chatroom"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "console_log",
+ "futures",
+ "futures-timer",
+ "log",
+ "matchbox_socket",
+ "tokio",
+ "tracing-subscriber",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "untrusted"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

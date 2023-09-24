@@ -1,4 +1,4 @@
-use super::{error::MessagingError, HandshakeResult, PeerDataSender};
+use super::{HandshakeResult, PacketSendError, PeerDataSender};
 use crate::{
     webrtc_socket::{
         error::SignalingError,
@@ -22,7 +22,7 @@ use futures::{
     stream::FuturesUnordered,
     Future, FutureExt, SinkExt, StreamExt,
 };
-use futures_channel::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
+use futures_channel::mpsc::{Receiver, Sender, TrySendError, UnboundedReceiver, UnboundedSender};
 use futures_timer::Delay;
 use futures_util::{lock::Mutex, select};
 use log::{debug, error, info, trace, warn};
@@ -33,6 +33,7 @@ use webrtc::{
     data_channel::{data_channel_init::RTCDataChannelInit, RTCDataChannel},
     ice_transport::{
         ice_candidate::{RTCIceCandidate, RTCIceCandidateInit},
+        ice_credential_type::RTCIceCredentialType,
         ice_server::RTCIceServer,
     },
     peer_connection::{
@@ -54,7 +55,7 @@ impl Signaller for NativeSignaller {
                 Err(e) => {
                     if let Some(attempts) = attempts.as_mut() {
                         if *attempts <= 1 {
-                            return Err(SignalingError::ConnectionFailed(Box::new(e)));
+                            return Err(SignalingError::NegotiationFailed(Box::new(e)));
                         } else {
                             *attempts -= 1;
                             warn!("connection to signaling server failed, {attempts} attempt(s) remain");
@@ -92,8 +93,11 @@ impl Signaller for NativeSignaller {
 pub(crate) struct NativeMessenger;
 
 impl PeerDataSender for UnboundedSender<Packet> {
-    fn send(&mut self, packet: Packet) -> Result<(), super::error::MessagingError> {
-        self.unbounded_send(packet).map_err(MessagingError::from)
+    fn send(&mut self, packet: Packet) -> Result<(), PacketSendError> {
+        self.unbounded_send(packet)
+            .map_err(|source| PacketSendError {
+                source: TrySendError::into_send_error(source),
+            })
     }
 }
 
@@ -432,7 +436,24 @@ async fn create_rtc_peer_connection(
             urls: ice_server_config.urls.clone(),
             username: ice_server_config.username.clone().unwrap_or_default(),
             credential: ice_server_config.credential.clone().unwrap_or_default(),
-            ..Default::default()
+            // NOTE: the RTCIceServer.credentialType field is
+            // deprecated/non-standard, and should not be used.
+            // See: https://developer.mozilla.org/en-US/docs/Web/API/RTCIceServer/credentialType
+            //
+            // MDN recommends setting only "credential", but webrtc-rs, on the
+            // other hand, will error if credential is present and
+            // `credential_type` is `Unspecified` So while our pubic API mirrors
+            // the web spec/MDN with non-standard fields removed (no
+            // credential_type), here we set the type to `Password` if and only
+            // if there is a `credential`, so webrtc-rs cooperates.
+            //
+            // In the future if webrtc-rs follows the spec more closely, this
+            // workaround can be removed.
+            credential_type: if ice_server_config.credential.is_some() {
+                RTCIceCredentialType::Password
+            } else {
+                RTCIceCredentialType::Unspecified
+            },
         }],
         ..Default::default()
     };

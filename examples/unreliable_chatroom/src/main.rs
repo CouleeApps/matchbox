@@ -51,6 +51,8 @@ async fn async_main() {
     #[cfg(not(target_arch = "wasm32"))]
     let mut stdin = BufReader::new(stdin());
 
+    let mut msg_count = 0;
+
     let mut is_host = false;
     'run: loop {
         // Handle any new peers
@@ -58,6 +60,10 @@ async fn async_main() {
             match state {
                 PeerState::Connected => {
                     info!("Peer joined: {peer}");
+
+                    for i in 0..10000 {
+                        unreliable_socket.send(Box::from(format!("Packet {i}").as_bytes()), peer);
+                    }
                 }
                 PeerState::Disconnected => {
                     info!("Peer left: {peer}");
@@ -92,7 +98,8 @@ async fn async_main() {
         // Accept any messages incoming
         for (peer, packet) in unreliable_socket.receive() {
             let message = String::from_utf8_lossy(&packet);
-            info!("Message from {peer}: {message:?}");
+            info!("Message {msg_count} from {peer}: {message:?}");
+            msg_count += 1;
         }
 
         let mut stdin_text: String = Default::default();

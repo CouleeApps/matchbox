@@ -38,6 +38,8 @@ pub struct ChannelConfig {
     /// Maximum number of retransmit attempts of a message before giving up
     /// See also: <https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel/maxRetransmits>
     pub max_retransmits: Option<u16>,
+
+    pub max_packet_life_time: Option<u16>,
 }
 
 impl ChannelConfig {
@@ -46,7 +48,8 @@ impl ChannelConfig {
     pub fn unreliable() -> Self {
         ChannelConfig {
             ordered: false,
-            max_retransmits: Some(0),
+            max_retransmits: Some(1),
+            max_packet_life_time: Some(0),
         }
     }
 
@@ -56,6 +59,7 @@ impl ChannelConfig {
         ChannelConfig {
             ordered: true,
             max_retransmits: None,
+            max_packet_life_time: None,
         }
     }
 }

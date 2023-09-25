@@ -522,6 +522,7 @@ async fn create_data_channel(
         ordered: Some(channel_config.ordered),
         negotiated: Some(channel_index as u16),
         max_retransmits: channel_config.max_retransmits,
+        max_packet_life_time: channel_config.max_packet_life_time,
         ..Default::default()
     };
 
